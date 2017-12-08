@@ -62,8 +62,27 @@ def train(config):
     ###########################################################################
     # Implement code here.
     ###########################################################################
+    
+    # monitor progress
+    saver = tf.train.Saver(max_to_keep= 40)
+    model_name = 'model'
+    model_type = 'seq2seq'
+    checkpoint_path = './checkpoints/' + model_type +'/'
+    if not tf.gfile.Exists(checkpoint_path):
+      tf.gfile.MakeDirs(checkpoint_path)
+    
+    merged = tf.summary.merge_all()
+    summary_writer = tf.summary.FileWriter(config.summary_path+ model_name + '/')
+  
+    save_freq = 10
+    #
+    
+    
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
+    
+    # If uncomment the next line -> put in comment sess.run(tf.global_variables_initializer()) as well as anything that seems necessary
+    #saver.restore(sess, checkpoint_path+"The name of the model you want to restore")
     
         
     for train_step in range(int(config.train_steps)):
@@ -74,8 +93,8 @@ def train(config):
         # Implement code here.
         #######################################################################
 
-        batch_inputs, batch_targets =  np.load('batches/inputs.npy'), np.load('batches/targets.npy')
-        batch_inputs_enc = np.load('batches/inputs.npy');
+        batch_inputs, batch_targets =  np.load('./batches/inputs.npy'), np.load('./batches/targets.npy')
+        batch_inputs_enc = np.load('./batches/inputs.npy');
         batch_inputs_enc = batch_inputs_enc[:,:,:-1]
     
         # sess.run ( .. )
@@ -90,7 +109,10 @@ def train(config):
                              model._state_placeholder:init_state_dec,
                              model.keep_prob : config.dropout_keep_prob})
 
-
+        # monitor progress        
+        summary_ = tf.Summary()
+        summary_.value.add(tag="Loss", simple_value=loss_)
+        summary_writer.add_summary(summary_, global_step = train_step+1)
 
         # Only for time measurement of step through network
         t2 = time.time()
@@ -102,6 +124,11 @@ def train(config):
                 datetime.now().strftime("%Y-%m-%d %H:%M"), train_step+1,
                 int(config.train_steps), config.batch_size, examples_per_second, loss_
             ))
+            
+        # Save model
+        if(train_step % save_freq == 0):
+          save_path = saver.save(sess, checkpoint_path + model_name, global_step=train_step)
+          print('Model saved at %s' % (save_path))
             
 
 
