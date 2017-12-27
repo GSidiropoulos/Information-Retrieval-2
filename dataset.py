@@ -7,8 +7,9 @@ Created on Thu Nov 30 14:32:44 2017
 
 import pickle
 import json
+import gzip 
+
 import numpy as np
-from random import sample
 
 
 # splits an input_file with split_length
@@ -42,37 +43,54 @@ def load_pickle(input_file):
     
 
 # transforms a pickle to a json file
-def load_json(input_file):
+def load_json_from_pickle(input_file):
     
     return [json.loads(j) for j in input_file]   
         
+            
+def load_json_from_gzip(input_file):
+    
+    gzip_file = gzip.open(input_file,'r')
+    
+    
+    
+    return [json.loads(j.decode("utf-8").strip("\n")) for j in gzip_file.readlines()]
+    
 
             
+def iterate_over_gzip(input_file):
+    
+    gzip_file = gzip.open(input_file,'r')
+    
+    lines = []
+        
+    # loop over the input_file and append the lines in a list
+    for i,line in enumerate(gzip_file):
+        
+        lines.append(line)
+        if (i+1)%128==0 and i>0:
+            
+            print("Read the "+str(i)+" lines")
+            
+            lines = []
+    
+            
 # get a batch with a qd representation
-def get_batch_qd(dataset , batch_size, start=0):
+def get_batch_qd(dataset , batch_size):
     
-    # check if batch exceeds batch_size
-    if start+batch_size <= len(dataset):
         
-        
-        serps = dataset[start:start+batch_size]
-        #serps = sample(dataset,128)
     
-    else:
-        # get again the first nth training to complete the batch
-        # or sample from the whole dataset for the rest of the batch
-        # serps = sample(dataset,128)
-        serps = dataset[start:]
-        serps += dataset[0:batch_size-(len(dataset)-start)]
-        
-
     # create the zero arrays
     representations = np.zeros((batch_size,11,10242),dtype=np.int32)
     
     targets = np.zeros((batch_size, 10), dtype=np.int32)
     
+    q_ids = [None]*batch_size
+    docs_ids = [None]*batch_size
+    
+    
     # for each query documents pair
-    for i, serp in enumerate(serps):
+    for i, serp in enumerate(dataset):
         
         # for each document in a serp
         for j , num_of_clicks in enumerate(serp['behavioral_features']['D']):
@@ -85,28 +103,20 @@ def get_batch_qd(dataset , batch_size, start=0):
         
         # get the targets
         targets[i] = np.asarray(list(serp['click_pattern']), dtype=np.int32)
+        
+        q_ids[i] = serp['query_id']
+        docs_ids[i] = serp['document_ids']
             
-    return representations , targets
+    return representations, targets, q_ids, docs_ids
+    
+    
 
 
     
     
 # get a batch with representations for QD + Q set
-def get_batch_qd_plus_q(dataset, batch_size, start=0):
+def get_batch_qd_plus_q(dataset, batch_size):
     
-    # check if batch exceeds batch_size
-    if start+batch_size <= len(dataset):
-        
-        
-        serps = dataset[start:start+batch_size]
-        #serps = sample(dataset,128)
-    
-    else:
-        # get again the first nth training to complete the batch
-        # or sample from the whole dataset for the rest of the batch
-        # serps = sample(dataset,128)
-        serps = dataset[start:]
-        serps += dataset[0:batch_size-(len(dataset)-start)]
     
     
     # create the zero-like arrays
@@ -114,9 +124,11 @@ def get_batch_qd_plus_q(dataset, batch_size, start=0):
     
     targets = np.zeros((batch_size, 10), dtype=np.int32)
     
-    
+    q_ids = [None]*batch_size
+    docs_ids = [None]*batch_size
+
     # foreach serp
-    for i, serp in enumerate(serps):
+    for i, serp in enumerate(dataset):
         
         # get the representations for the queries
         representations[i][0][np.asarray(list(serp['behavioral_features']['Q'].keys()), dtype=np.int32)] = np.asarray(list(serp['behavioral_features']['Q'].values()), dtype=np.int32)
@@ -132,7 +144,11 @@ def get_batch_qd_plus_q(dataset, batch_size, start=0):
             
             representations[i][j+1][np.asarray(list(num_of_clicks.keys()), dtype=np.int32)+1024] = np.asarray(list(num_of_clicks.values()), dtype=np.int32)
     
-    return representations , targets
+            
+        q_ids[i] = serp['query_id']
+        docs_ids[i] = serp['document_ids']
+            
+    return representations, targets, q_ids, docs_ids
 
 
 
@@ -148,7 +164,7 @@ def get_batch_qd_plus_q(dataset, batch_size, start=0):
 #pickle_file = load_pickle("split_1")
 
 # trasnform the pickle file to get the json_file again
-#dataset = load_json(pickle_file)
+#dataset_ = load_json_from_pickle(pickle_file)
 
 
 #x_train_qd, y_train_qd = get_batch_qd(dataset,128)
